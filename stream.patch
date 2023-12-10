@@ -1,0 +1,75 @@
+# HG changeset patch
+# User Daniel Areiza <daareiza at gmail.com>
+# Date 1591030632 18000
+#      Mon Jun 01 11:57:12 2020 -0500
+# Node ID 5b16afc16eb9ae778d6a26563a9f1a5ae3163704
+# Parent  8cadaf7e7231865f2f81c03cb785c045dda6bf8b
+Stream Upstream: ssl_early_data config option support
+
+SSL early data config option support for streams
+
+diff -r 8cadaf7e7231 -r 5b16afc16eb9 src/stream/ngx_stream_ssl_module.c
+--- a/src/stream/ngx_stream_ssl_module.c        Tue May 26 19:17:11 2020 +0300
++++ b/src/stream/ngx_stream_ssl_module.c        Mon Jun 01 11:57:12 2020 -0500
+@@ -196,6 +196,13 @@
+     offsetof(ngx_stream_ssl_conf_t, crl),
+     NULL },
+
++    { ngx_string("ssl_early_data"),
++      NGX_STREAM_MAIN_CONF|NGX_STREAM_SRV_CONF|NGX_CONF_FLAG,
++      ngx_conf_set_flag_slot,
++      NGX_STREAM_SRV_CONF_OFFSET,
++      offsetof(ngx_stream_ssl_conf_t, early_data),
++      NULL },
++
+     ngx_null_command
+};
+
+@@ -286,6 +293,9 @@
+   { ngx_string("ssl_client_v_remain"), NULL, ngx_stream_ssl_variable,
+     (uintptr_t) ngx_ssl_get_client_v_remain, NGX_STREAM_VAR_CHANGEABLE, 0 },
+
++    { ngx_string("ssl_early_data"), NULL, ngx_stream_ssl_variable,
++      (uintptr_t) ngx_ssl_get_early_data, NGX_STREAM_VAR_CHANGEABLE, 0 },
++
+     ngx_stream_null_variable
+};
+
+@@ -602,6 +612,7 @@
+   scf->session_timeout = NGX_CONF_UNSET;
+   scf->session_tickets = NGX_CONF_UNSET;
+   scf->session_ticket_keys = NGX_CONF_UNSET_PTR;
++    scf->early_data = NGX_CONF_UNSET;
+
+   return scf;
+}
+@@ -624,6 +635,8 @@
+   ngx_conf_merge_value(conf->prefer_server_ciphers,
+                        prev->prefer_server_ciphers, 0);
+
++    ngx_conf_merge_value(conf->early_data, prev->early_data, 0);
++
+   ngx_conf_merge_bitmask_value(conf->protocols, prev->protocols,
+                        (NGX_CONF_BITMASK_SET|NGX_SSL_TLSv1
+                         |NGX_SSL_TLSv1_1|NGX_SSL_TLSv1_2));
+@@ -811,6 +824,10 @@
+       return NGX_CONF_ERROR;
+   }
+
++    if (ngx_ssl_early_data(cf, &conf->ssl, conf->early_data) != NGX_OK) {
++        return NGX_CONF_ERROR;
++    }
++
+   return NGX_CONF_OK;
+}
+
+diff -r 8cadaf7e7231 -r 5b16afc16eb9 src/stream/ngx_stream_ssl_module.h
+--- a/src/stream/ngx_stream_ssl_module.h        Tue May 26 19:17:11 2020 +0300
++++ b/src/stream/ngx_stream_ssl_module.h        Mon Jun 01 11:57:12 2020 -0500
+@@ -54,6 +54,8 @@
+
+   u_char          *file;
+   ngx_uint_t       line;
++
++    ngx_flag_t      early_data;
+} ngx_stream_ssl_conf_t;
